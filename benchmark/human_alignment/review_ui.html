@@ -155,7 +155,6 @@
         border-left: 3px solid #d89b20;
         background: var(--source);
         padding: 8px 10px;
-        white-space: pre-wrap;
         overflow-wrap: anywhere;
         font-size: 13px;
       }
@@ -167,7 +166,52 @@
       .system-a .head { background: var(--a); }
       .system-b .head { background: var(--b); }
       .stack { display: grid; gap: 10px; }
-      .text { white-space: pre-wrap; overflow-wrap: anywhere; }
+      .markdown { overflow-wrap: anywhere; }
+      .markdown > :first-child { margin-top: 0; }
+      .markdown > :last-child { margin-bottom: 0; }
+      .markdown p { margin: 0 0 10px; }
+      .markdown h1, .markdown h2, .markdown h3 {
+        margin: 12px 0 8px;
+        line-height: 1.25;
+        letter-spacing: 0;
+      }
+      .markdown h1 { font-size: 22px; }
+      .markdown h2 { font-size: 19px; }
+      .markdown h3 { font-size: 16px; }
+      .markdown ul, .markdown ol { margin: 0 0 10px 22px; padding: 0; }
+      .markdown li { margin: 3px 0; }
+      .markdown code {
+        border: 1px solid #d9dee7;
+        border-radius: 4px;
+        background: #f6f8fa;
+        padding: 1px 4px;
+        font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+        font-size: .92em;
+      }
+      .markdown pre {
+        overflow: auto;
+        border: 1px solid #d9dee7;
+        border-radius: 6px;
+        background: #f6f8fa;
+        padding: 10px;
+      }
+      .markdown pre code {
+        border: 0;
+        padding: 0;
+        background: transparent;
+      }
+      .markdown blockquote {
+        margin: 0 0 10px;
+        padding: 6px 10px;
+        border-left: 3px solid #aab4c2;
+        color: #475467;
+        background: #f7f9fb;
+      }
+      .markdown hr {
+        border: 0;
+        border-top: 1px solid var(--line);
+        margin: 12px 0;
+      }
       .score-form { display: grid; gap: 14px; }
       .metric-group { display: grid; gap: 8px; }
       .metric-group h3 { margin: 0; font-size: 14px; }
@@ -283,6 +327,107 @@
       function escapeHtml(value) {
         return String(value ?? "").replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;");
       }
+      function renderInlineMarkdown(text) {
+        let html = escapeHtml(text);
+        html = html.replace(/`([^`]+)`/g, "<code>$1</code>");
+        html = html.replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");
+        html = html.replace(/__([^_]+)__/g, "<strong>$1</strong>");
+        html = html.replace(/(?<!\*)\*([^*\n]+)\*(?!\*)/g, "<em>$1</em>");
+        html = html.replace(/(?<!_)_([^_\n]+)_(?!_)/g, "<em>$1</em>");
+        return html;
+      }
+      function markdownToHtml(raw) {
+        const text = String(raw ?? "").replace(/\r\n/g, "\n");
+        const lines = text.split("\n");
+        const out = [];
+        let paragraph = [];
+        let listType = "";
+        let inCode = false;
+        let codeLines = [];
+        function flushParagraph() {
+          if (paragraph.length) {
+            out.push(`<p>${renderInlineMarkdown(paragraph.join(" "))}</p>`);
+            paragraph = [];
+          }
+        }
+        function closeList() {
+          if (listType) {
+            out.push(`</${listType}>`);
+            listType = "";
+          }
+        }
+        function openList(type) {
+          if (listType !== type) {
+            closeList();
+            out.push(`<${type}>`);
+            listType = type;
+          }
+        }
+        for (const line of lines) {
+          const trimmed = line.trim();
+          if (trimmed.startsWith("```")) {
+            if (inCode) {
+              out.push(`<pre><code>${escapeHtml(codeLines.join("\n"))}</code></pre>`);
+              codeLines = [];
+              inCode = false;
+            } else {
+              flushParagraph();
+              closeList();
+              inCode = true;
+            }
+            continue;
+          }
+          if (inCode) {
+            codeLines.push(line);
+            continue;
+          }
+          if (!trimmed) {
+            flushParagraph();
+            closeList();
+            continue;
+          }
+          if (/^---+$/.test(trimmed) || /^\*\*\*+$/.test(trimmed)) {
+            flushParagraph();
+            closeList();
+            out.push("<hr>");
+            continue;
+          }
+          const heading = trimmed.match(/^(#{1,3})\s+(.+)$/);
+          if (heading) {
+            flushParagraph();
+            closeList();
+            out.push(`<h${heading[1].length}>${renderInlineMarkdown(heading[2])}</h${heading[1].length}>`);
+            continue;
+          }
+          const unordered = trimmed.match(/^[-*]\s+(.+)$/);
+          if (unordered) {
+            flushParagraph();
+            openList("ul");
+            out.push(`<li>${renderInlineMarkdown(unordered[1])}</li>`);
+            continue;
+          }
+          const ordered = trimmed.match(/^\d+\.\s+(.+)$/);
+          if (ordered) {
+            flushParagraph();
+            openList("ol");
+            out.push(`<li>${renderInlineMarkdown(ordered[1])}</li>`);
+            continue;
+          }
+          const quote = trimmed.match(/^>\s?(.+)$/);
+          if (quote) {
+            flushParagraph();
+            closeList();
+            out.push(`<blockquote>${renderInlineMarkdown(quote[1])}</blockquote>`);
+            continue;
+          }
+          closeList();
+          paragraph.push(trimmed);
+        }
+        if (inCode) out.push(`<pre><code>${escapeHtml(codeLines.join("\n"))}</code></pre>`);
+        flushParagraph();
+        closeList();
+        return `<div class="markdown">${out.join("")}</div>`;
+      }
       function asList(value) { return Array.isArray(value) ? value : value ? [value] : []; }
       function currentItem() { return state.items[state.current] || null; }
       function ensureAnswer(pairId) {
@@ -389,10 +534,10 @@
       function renderGaps(gaps) {
         if (!gaps.length) return '<div class="empty">No gaps provided.</div>';
         return gaps.map((gap) => {
-          const sourceHtml = Object.entries(gap.source_excerpts || {}).map(([page, text]) => `<div class="source"><strong>Page ${escapeHtml(page)}</strong>\n${escapeHtml(text)}</div>`).join("");
+          const sourceHtml = Object.entries(gap.source_excerpts || {}).map(([page, text]) => `<div class="source"><strong>Page ${escapeHtml(page)}</strong>${markdownToHtml(text)}</div>`).join("");
           return `<article class="gap"><div class="gap-title"><span>${escapeHtml(gap.gap_id || "")} ${escapeHtml(gap.target_concept || "")}</span><span>${escapeHtml(gap.gap_type || "")}</span></div>
-            <div>${escapeHtml(gap.description || "")}</div>
-            ${gap.correct_understanding ? `<p><strong>Correct understanding:</strong> ${escapeHtml(gap.correct_understanding)}</p>` : ""}
+            ${markdownToHtml(gap.description || "")}
+            ${gap.correct_understanding ? `<p><strong>Correct understanding:</strong></p>${markdownToHtml(gap.correct_understanding)}` : ""}
             ${sourceHtml || '<p class="status">No source excerpt.</p>'}
           </article>`;
         }).join("");
@@ -410,11 +555,11 @@
       }
       function renderDialog(dialog) {
         if (!dialog.length) return '<div class="empty">No dialog provided.</div>';
-        return dialog.map((message, idx) => `<article class="msg"><div class="msg-head"><span>${idx + 1}. ${escapeHtml(message.role || "")}</span></div><div class="text">${escapeHtml(message.content || "")}</div></article>`).join("");
+        return dialog.map((message, idx) => `<article class="msg"><div class="msg-head"><span>${idx + 1}. ${escapeHtml(message.role || "")}</span></div>${markdownToHtml(message.content || "")}</article>`).join("");
       }
       function renderQuestions(questions) {
         if (!questions.length) return '<div class="empty">No practice questions provided.</div>';
-        return questions.map((question, idx) => `<article class="question"><div class="msg-head"><span>Question ${idx + 1}</span></div><div class="text">${escapeHtml(question)}</div></article>`).join("");
+        return questions.map((question, idx) => `<article class="question"><div class="msg-head"><span>Question ${idx + 1}</span></div>${markdownToHtml(question)}</article>`).join("");
       }
       function renderScoreForm() {
         const item = currentItem();
