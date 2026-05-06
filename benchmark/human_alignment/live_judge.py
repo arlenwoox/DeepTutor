@@ -36,10 +36,28 @@ LIVE_JUDGE_METRIC_RUBRIC = {
         "attribution phrases, or otherwise clear separation between source-grounded "
         "content and the tutor's own explanation are important evidence for this metric."
     ),
-    "PER": "Personalization. Prefer the system that adapts better to the student's profile, knowledge state, and current confusion.",
-    "APP": "Applicability. Prefer the system that better helps the student make progress on the task and success criteria.",
-    "VID": "Vividness. Prefer the system with more concrete, vivid, and example-supported explanations.",
-    "LD": "Logical depth. Prefer the system with deeper, more coherent conceptual reasoning.",
+    "PER": (
+        "Personalization. Prefer the system that adapts better to the student's profile, "
+        "knowledge state, current confusion, and communication style. Important positive "
+        "evidence includes appropriately mirroring the student's tone or wording, and "
+        "providing concise summaries that help the student keep track of the session."
+    ),
+    "APP": (
+        "Applicability. Prefer the system that better helps the student make progress on "
+        "the task and success criteria. Important positive evidence includes actionable "
+        "examples and reflective/checking questions that prompt the student to apply the idea."
+    ),
+    "VID": (
+        "Vividness. Prefer the system with more concrete, vivid, and example-supported "
+        "explanations. Important positive evidence includes multiple forms of presentation, "
+        "such as tables, icons/symbolic markers, structured comparisons, or other formats "
+        "that make the explanation easier to inspect."
+    ),
+    "LD": (
+        "Logical depth. Prefer the system with deeper, more coherent conceptual reasoning. "
+        "Important positive evidence includes explicit multi-step reasoning, clear links "
+        "between steps, and sufficient unpacking of why each step follows."
+    ),
     "FIT": "Practice question fitness. Prefer the practice set that better fits the student and target gaps.",
     "GND": "Practice question groundedness. Prefer the practice set that is more consistent with the source excerpts.",
     "DIV": "Practice question diversity. Prefer the practice set that covers more varied angles rather than repeating one pattern.",
