@@ -215,6 +215,7 @@ def summarize_annotations(
     output_path: Path,
     tie_threshold: float = 0.25,
     live_llm_preferences: dict[str, dict[str, str]] | None = None,
+    live_metric_codes: list[str] | None = None,
     judge_metadata: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     key_by_pair = _load_key(key_path)
@@ -250,9 +251,13 @@ def summarize_annotations(
             human_side = _majority(human_votes[pair_id].get(code, []))
             human_backend = _side_to_backend_pref(human_side, key)
             live_backend = (live_llm_preferences or {}).get(pair_id, {}).get(code)
+            use_live_only = live_llm_preferences is not None and live_metric_codes is not None
             if live_backend in {"target", "baseline", "tie"}:
                 llm_side = None
                 llm_backend = live_backend
+            elif use_live_only:
+                llm_side = None
+                llm_backend = None
             else:
                 llm_side = _llm_side_preference(scores_a.get(code), scores_b.get(code), tie_threshold)
                 llm_backend = _side_to_backend_pref(llm_side, key)

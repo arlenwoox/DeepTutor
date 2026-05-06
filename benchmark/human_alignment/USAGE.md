@@ -247,6 +247,19 @@ python3 -m benchmark.human_alignment.plot_alignment \
 现场 LLM judge 只会评 `completed_annotations_all.csv` 中已经有人类标注的 pair。空白 template 行不会触发 LLM 调用。
 每个 pair 会按 10 个 metric 分开调用 LLM，即一次调用只判断一个 metric，再聚合成最终的 per-metric preference。
 
+如果只想重新评某一个或几个指标，用 `--metrics`：
+
+```bash
+python3 -m benchmark.human_alignment.plot_alignment \
+  --annotations benchmark/data/bench_pipeline/human_alignment_pairwise/completed_annotations_all.csv \
+  --key benchmark/data/bench_pipeline/human_alignment_pairwise/annotation_key.json \
+  --metrics SF \
+  --judge-concurrency 8 \
+  --output benchmark/data/bench_pipeline/human_alignment_pairwise/human_alignment_preference_alignment_SF.svg
+```
+
+多个指标用逗号分隔，例如 `--metrics SF,PER,APP`。
+
 会额外输出：
 
 ```text

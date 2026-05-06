@@ -77,6 +77,16 @@ Use the metric definitions exactly. Do not infer backend identity. Return only v
 """
 
 
+def parse_metric_codes(raw: str | None = None) -> list[str]:
+    if not raw:
+        return list(METRIC_CODES)
+    requested = [part.strip().upper() for part in raw.split(",") if part.strip()]
+    unknown = [code for code in requested if code not in METRIC_CODES]
+    if unknown:
+        raise ValueError(f"Unknown metric code(s): {', '.join(unknown)}. Valid: {', '.join(METRIC_CODES)}")
+    return requested
+
+
 def _load_package(path: Path) -> dict[str, dict[str, Any]]:
     rows: dict[str, dict[str, Any]] = {}
     with open(path, encoding="utf-8") as f:
@@ -279,6 +289,7 @@ async def run_live_judge(
     temperature: float = 0.0,
     max_tokens: int = 1800,
     limit_pairs: int = 0,
+    metric_codes: list[str] | None = None,
     verbose: bool = True,
 ) -> dict[str, Any]:
     key_by_pair = _load_key(key_path)
@@ -290,6 +301,7 @@ async def run_live_judge(
     ]
     if limit_pairs > 0:
         pair_ids = pair_ids[:limit_pairs]
+    metric_codes = metric_codes or list(METRIC_CODES)
 
     if verbose:
         print("Live LLM judge starting")
@@ -299,7 +311,8 @@ async def run_live_judge(
         print(f"  annotations : {annotations_path}")
         print(f"  package     : {package_path}")
         print(f"  pairs       : {len(pair_ids)}")
-        print(f"  judge calls : {len(pair_ids) * len(METRIC_CODES)} ({len(METRIC_CODES)} metrics per pair)")
+        print(f"  metrics     : {','.join(metric_codes)}")
+        print(f"  judge calls : {len(pair_ids) * len(metric_codes)} ({len(metric_codes)} metrics per pair)")
         print(f"  concurrency : {max(1, concurrency)}")
         print(f"  max_tokens  : {max_tokens}")
 
@@ -307,7 +320,7 @@ async def run_live_judge(
     started = time.monotonic()
     tasks = {}
     for pair_id in pair_ids:
-        for metric_code in METRIC_CODES:
+        for metric_code in metric_codes:
             task = asyncio.create_task(
                 _judge_one_metric(
                     pair_id=pair_id,
@@ -370,6 +383,7 @@ async def run_live_judge(
         "model": model,
         "binding": binding or "",
         "base_url": base_url or "",
+        "metric_codes": metric_codes,
         "num_pairs_judged": len(items),
         "num_metric_judgments": len(metric_items),
         "items": items,
@@ -404,6 +418,7 @@ def summarize_with_live_judge(
     temperature: float = 0.0,
     max_tokens: int = 1800,
     limit_pairs: int = 0,
+    metric_codes: list[str] | None = None,
     verbose: bool = True,
 ) -> dict[str, Any]:
     judge_result = asyncio.run(
@@ -420,6 +435,7 @@ def summarize_with_live_judge(
             temperature=temperature,
             max_tokens=max_tokens,
             limit_pairs=limit_pairs,
+            metric_codes=metric_codes,
             verbose=verbose,
         )
     )
@@ -428,11 +444,13 @@ def summarize_with_live_judge(
         key_path=key_path,
         output_path=summary_output_path,
         live_llm_preferences=live_preferences_by_pair(judge_result),
+        live_metric_codes=metric_codes or list(METRIC_CODES),
         judge_metadata={
             "judge_output_path": str(judge_output_path),
             "model": model,
             "binding": binding or "",
             "base_url": base_url or "",
+            "metric_codes": metric_codes or list(METRIC_CODES),
             "num_pairs_judged": judge_result.get("num_pairs_judged", 0),
             "num_metric_judgments": judge_result.get("num_metric_judgments", 0),
             "judge_granularity": judge_result.get("judge_granularity", ""),
@@ -456,6 +474,7 @@ def main() -> None:
     parser.add_argument("--concurrency", type=int, default=DEFAULT_JUDGE_CONCURRENCY, help="Concurrent judge calls")
     parser.add_argument("--max-tokens", type=int, default=1800, help="Max tokens per judge response")
     parser.add_argument("--limit-pairs", type=int, default=0, help="Debug: judge only first N annotated pairs")
+    parser.add_argument("--metrics", default="", help="Comma-separated metric codes to judge, e.g. SF or SF,PER")
     parser.add_argument("--quiet", action="store_true", help="Suppress progress logs")
     parser.add_argument("--judge-output", default="", help="Live judge JSON output")
     parser.add_argument("--summary-output", default="", help="Summary JSON output")
@@ -478,6 +497,7 @@ def main() -> None:
         concurrency=args.concurrency,
         max_tokens=args.max_tokens,
         limit_pairs=args.limit_pairs,
+        metric_codes=parse_metric_codes(args.metrics),
         verbose=not args.quiet,
     )
     print(f"Live judge: {judge_output_path}")

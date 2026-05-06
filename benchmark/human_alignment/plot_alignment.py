@@ -18,6 +18,7 @@ from benchmark.human_alignment.common import METRIC_CODES, read_json
 from benchmark.human_alignment.live_judge import (
     DEFAULT_JUDGE_CONCURRENCY,
     DEFAULT_JUDGE_MODEL,
+    parse_metric_codes,
     summarize_with_live_judge,
 )
 from benchmark.human_alignment.summarize_annotations import summarize_annotations
@@ -100,7 +101,8 @@ def _bar(
     return "\n".join(parts)
 
 
-def build_svg(summary: dict[str, Any], title: str) -> str:
+def build_svg(summary: dict[str, Any], title: str, metric_codes: list[str] | None = None) -> str:
+    metric_codes = metric_codes or list(METRIC_CODES)
     width = 1400
     height = 620
     left = 84
@@ -110,7 +112,7 @@ def build_svg(summary: dict[str, Any], title: str) -> str:
     plot_w = width - left - right
     plot_h = height - top - bottom
     y_bottom = top + plot_h
-    metric_gap = plot_w / len(METRIC_CODES)
+    metric_gap = plot_w / len(metric_codes)
     bar_w = 42
     bar_gap = 4
     baseline_y = y_bottom
@@ -140,7 +142,7 @@ def build_svg(summary: dict[str, Any], title: str) -> str:
         "Preference share (%)</text>"
     )
 
-    for idx, code in enumerate(METRIC_CODES):
+    for idx, code in enumerate(metric_codes):
         center = left + metric_gap * (idx + 0.5)
         human_x = center - bar_w - bar_gap / 2
         llm_x = center + bar_gap / 2
@@ -213,6 +215,7 @@ def main() -> None:
     parser.add_argument("--judge-max-tokens", type=int, default=1800, help="Max tokens per live judge response")
     parser.add_argument("--judge-output", default="", help="Live judge JSON output")
     parser.add_argument("--limit-pairs", type=int, default=0, help="Debug: live judge only first N annotated pairs")
+    parser.add_argument("--metrics", default="", help="Comma-separated metric codes to judge/plot, e.g. SF or SF,PER")
     parser.add_argument("--quiet", action="store_true", help="Suppress live judge progress logs")
     parser.add_argument("--tie-threshold", type=float, default=0.25, help="LLM score delta treated as tie")
     parser.add_argument("--output", default="", help="Output SVG path")
@@ -222,6 +225,7 @@ def main() -> None:
         help="Figure title",
     )
     args = parser.parse_args()
+    metric_codes = parse_metric_codes(args.metrics)
 
     if args.summary:
         summary_path = Path(args.summary)
@@ -247,6 +251,7 @@ def main() -> None:
                 concurrency=args.judge_concurrency,
                 max_tokens=args.judge_max_tokens,
                 limit_pairs=args.limit_pairs,
+                metric_codes=metric_codes,
                 verbose=not args.quiet,
             )
         else:
@@ -259,7 +264,7 @@ def main() -> None:
 
     output_path = Path(args.output) if args.output else Path(summary_path).with_name("human_alignment_preference_alignment.svg")
     output_path.parent.mkdir(parents=True, exist_ok=True)
-    output_path.write_text(build_svg(summary, args.title), encoding="utf-8")
+    output_path.write_text(build_svg(summary, args.title, metric_codes), encoding="utf-8")
     print(f"Figure: {output_path}")
     if summary.get("llm_preference_source"):
         print(f"LLM preference source: {summary['llm_preference_source']}")
