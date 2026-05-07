@@ -102,58 +102,16 @@ Topic mode and exam-mimic mode. Memory hooks run when launched via `start.py`.
 
 ## Evaluation
 
-Evaluation follows three axes: **TutorBench construction**, **first-person interactive tutoring evaluation**, and **general problem-solving transfer**, plus **component ablations**. Below, each figure is paired with the scripts that implement the same logic.
-
-### TutorBench: benchmark construction
-
-University-level sources are indexed into per-domain knowledge bases; each KB yields learner profiles (beginner / intermediate / advanced), source-grounded knowledge gaps (misconception, incomplete, missing), and interactive tasks assembled with rejection sampling. The pipeline writes structured entries under the default output root.
-
-<p align="center">
-  <img src="assets/figs/bench-0315.png" alt="TutorBench construction pipeline" width="920" />
-</p>
-<p align="center"><em>TutorBench: profile + knowledge gaps + interactive task per entry.</em></p>
-
-**Step 1 — generate scopes, profiles, and entries** (maps to benchmark construction in the report):
-
-```bash
-python benchmark/pipeline/step1_generate_entries.py \
-  --kb-names "Calculus,LinearAlgebra" \
-  --kb-dir data/knowledge_bases
-```
-
-Default output root: `benchmark/data/bench_pipeline/`. Entries: `entries/<kb_name>/profiles/<profile_id>/entries.jsonl`.
-
-<details>
-<summary>Step 1 CLI flags</summary>
-
-| Flag | Description |
-|------|-------------|
-| `--kb-names` | Comma-separated KB names (required) |
-| `--kb-dir` | KB root (default: `data/knowledge_bases`) |
-| `--config` | Path to `benchmark/config/benchmark_config.yaml` |
-| `--output-root` | Override pipeline output root |
-| `--concurrency` | Parallel profile tasks (default: 6) |
-| `--kb-concurrency` | Parallel KB tasks (default: 6) |
-
-</details>
-
+Evaluation follows two public axes: **first-person interactive tutoring evaluation** and **general problem-solving transfer**, plus **component ablations**.
 
 ### First-person interactive evaluation
 
-A student simulator is initialized from a TutorBench entry (profile, gaps, task); the tutor and simulator exchange multi-turn dialogue; transcripts are scored by an independent LLM judge on solve-side and practice-side rubrics.
+A student simulator is initialized from a benchmark entry; the tutor and simulator exchange multi-turn dialogue; transcripts are scored by an independent LLM judge on solve-side and practice-side rubrics.
 
 <p align="center">
   <img src="assets/figs/eval-0315.png" alt="First-person interactive evaluation protocol" width="920" />
 </p>
 <p align="center"><em>First-person protocol: simulator ↔ tutor dialogue; traces → personalized rubrics.</em></p>
-
-**Step 2 — run simulations** (generate transcripts per backend):
-
-```bash
-python benchmark/pipeline/step2_generate_transcripts.py \
-  --kb-names "Calculus,LinearAlgebra" \
-  --backends "deep_tutor,mock,cot"
-```
 
 ### Table 1 — Main results on TutorBench (interactive evaluation)
 
@@ -161,61 +119,6 @@ python benchmark/pipeline/step2_generate_transcripts.py \
   <img src="assets/figs/table-1.png" alt="Table 1: Main results on TutorBench" width="820" />
 </p>
 
-
-**Step 3 — evaluate transcripts** (LLM-as-judge; metrics align with Table 1 below):
-
-```bash
-python benchmark/pipeline/step3_evaluate_transcripts.py \
-  --kb-names "Calculus,LinearAlgebra" \
-  --backends "deep_tutor,mock,cot"
-```
-
-<details>
-<summary>Step 2 CLI flags</summary>
-
-| Flag | Description |
-|------|-------------|
-| `--kb-names` | Comma-separated KB names (required) |
-| `--output-root` | Pipeline output root |
-| `--backends` | `mock`, `cot`, `self_refine`, `react`, `deep_tutor`, `deep_tutor_no_rag`, `deep_tutor_no_memory`, `deep_tutor_no_rag_memory` |
-| `--max-turns` | Max student turns per session (default: 30) |
-| `--language` | `en` or `zh` |
-| `--model` | Override `LLM_MODEL` for simulation |
-| `--concurrency` / `--backend-concurrency` | Parallelism |
-| `--force` | Rerun sessions even if present |
-| `-v` / `--verbose` | Dialogue logs |
-
-</details>
-
-
-<details>
-<summary>Step 3 CLI flags</summary>
-
-| Flag | Description |
-|------|-------------|
-| `--kb-names` | Comma-separated KB names (required) |
-| `--backends` | Backends to score |
-| `--model` | Override judge model |
-| `--temperature` | Judge temperature (default: 0.2) |
-| `--concurrency` | Parallel transcript evaluations |
-| `--skip-turns` | Turn-level metrics off (turn count only) |
-| `--force` | Overwrite existing eval JSON |
-
-</details>
-
-
-<details>
-<summary>Multi-model Step 2 + fixed judge (Step 3)</summary>
-
-```bash
-python -m benchmark.pipeline.run_step2_multimodel_then_step3_fixed_judge \
-  --kb-names "Calculus" \
-  --step2-models "gpt-4o,deepseek-v3" \
-  --judge-model "gpt-4o" \
-  --backends "deep_tutor,mock"
-```
-
-</details>
 
 <details>
 <summary>Standalone transcript evaluation & simulator tools</summary>
@@ -268,22 +171,6 @@ RAG and Memory are ablated in the lower block of Table 1; the radar chart summar
 </p>
 <p align="center"><em>Ablation: full DeepTutor (black) vs. w/o RAG (left) and w/o Memory (right). Labels mark the largest drops.</em></p>
 
-Ablation is reproduced by running Step 2 + Step 3 with all four backend variants:
-
-```bash
-# Step 2: generate transcripts for full and ablated variants
-python benchmark/pipeline/step2_generate_transcripts.py \
-  --kb-names "Calculus,LinearAlgebra" \
-  --backends "deep_tutor,deep_tutor_no_rag,deep_tutor_no_memory,deep_tutor_no_rag_memory"
-
-# Step 3: evaluate all variants with the same judge
-python benchmark/pipeline/step3_evaluate_transcripts.py \
-  --kb-names "Calculus,LinearAlgebra" \
-  --backends "deep_tutor,deep_tutor_no_rag,deep_tutor_no_memory,deep_tutor_no_rag_memory"
-```
-
-The per-backend breakdown in `manifests/step3_summary.json` directly yields the ablation rows in Table 1.
-
 ---
 
 ## Repository structure
@@ -297,7 +184,6 @@ DeepTutor/
 │   ├── data_generation/
 │   ├── evaluation/
 │   ├── iso_solve/
-│   ├── pipeline/
 │   ├── prompts/
 │   ├── simulation/
 │   └── tools/

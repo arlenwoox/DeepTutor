@@ -13,6 +13,9 @@ src/services/rag/eg_only_for_analysis/
 benchmark/data/
 paper/
 benchmark/iso_solve/report_trace/
+benchmark/pipeline/
+benchmark/human_alignment/
+tests/benchmark/test_human_alignment.py
 
 # ============================================
 # Python Related
