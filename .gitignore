@@ -122,6 +122,16 @@ cache/
 # Cursor
 .cursor/
 
+# Local AI/agent workspace artifacts
+.codegraph/
+deep-teach-output/
+PR_DESCRIPTION.md
+PR_REPLY_DRAFT.md
+DeepTutor-Usage-Guide.md
+CLAUDE.md
+*.code-workspace
+启动 DeepTutor.bat
+
 # PyCharm / IntelliJ IDEA
 .idea/
 *.iml
